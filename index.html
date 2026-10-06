@@ -196,11 +196,24 @@ function detect(c){
     if(best>=.45) scored.push([best,x,y,br]);
   }
   scored.sort((p,q)=>q[0]-p[0]||q[3]-p[3]);
-  const out=[];
-  for(const [,x,y,r] of scored){
-    if(out.length>=24) break;
+  let out=[];
+  for(const [sc,x,y,r] of scored){
+    if(out.length>=13) break; // 12 boules + cochonnet : maximum possible en pétanque
     if(out.some(o=>Math.hypot(o.x-x,o.y-y)<.6*Math.max(o.r,r))) continue;
-    out.push({x,y,r});
+    out.push({x,y,r,sc});
+  }
+  // anti-faux positifs : on écarte les cercles bien moins nets que le meilleur,
+  // puis ceux de rayon incohérent (les boules sont quasi identiques),
+  // en tolérant un seul petit cercle, candidat cochonnet
+  if(out.length){
+    const best=out[0].sc;
+    out=out.filter(o=>o.sc>=.75*best);
+    if(out.length>2){
+      const a=out.filter(o=>o.sc>=.8*best);
+      const ref=Math.max(...a.map(o=>o.r)); // rayon d'une boule : le plus grand cercle net
+      const small=out.filter(o=>o.r<.55*ref).sort((p,q)=>q.sc-p.sc)[0];
+      out=out.filter(o=>(o.r>=.55*ref&&o.r<=1.35*ref)||o===small);
+    }
   }
   const res=out.map(o=>({x:o.x/s,y:o.y/s,r:o.r/s,team:0,jack:false}));
   if(res.length>=2){
