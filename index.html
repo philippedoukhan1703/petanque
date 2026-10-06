@@ -205,7 +205,7 @@ function detect(c){
   const res=out.map(o=>({x:o.x/s,y:o.y/s,r:o.r/s,team:0,jack:false}));
   if(res.length>=2){
     const med=res.map(b=>b.r).sort((p,q)=>p-q)[res.length>>1], small=res.reduce((p,q)=>q.r<p.r?q:p);
-    if(small.r<.6*med) small.jack=true;
+    if(small.r<.75*med) small.jack=true; // un vrai cochonnet (30 mm) est bien plus petit qu'une boule
   }
   // équipes automatiques : 2-moyennes sur la couleur moyenne de chaque boule
   const colOf=o=>{
@@ -262,12 +262,16 @@ new ResizeObserver(layout).observe($('#stage'));
 function draw(){
   const x=cv.getContext('2d'),v=verdict(),lw=Math.max(3,img.width/250),pal=['#9aa5ae','#d6393f','#2b6fe0'];
   x.drawImage(img,0,0);
-  if(v){ // cercles concentriques centrés sur le cochonnet : un par boule mesurée
-    const j=balls.find(b=>b.jack);
-    x.save(); x.setLineDash([lw*2,lw*1.5]); x.lineWidth=Math.max(1.5,lw*.55); x.globalAlpha=.9;
-    for(const e of v.l){
-      x.beginPath(); x.arc(j.x,j.y,Math.max(1,Math.hypot(e.b.x-j.x,e.b.y-j.y)-e.b.r),0,7);
-      x.strokeStyle=pal[e.b.team]; x.stroke();
+  const j=balls.find(b=>b.jack);
+  if(j){ // cercles concentriques centrés sur le cochonnet : un par boule, dès qu'un cochonnet existe
+    x.save(); x.setLineDash([lw*2.2,lw*1.6]);
+    for(const b of balls){
+      if(b.jack) continue;
+      const R=Math.max(1,Math.hypot(b.x-j.x,b.y-j.y)-b.r);
+      x.beginPath(); x.arc(j.x,j.y,R,0,7);
+      x.strokeStyle='rgba(0,0,0,.5)'; x.lineWidth=lw*1.1; x.stroke();
+      x.beginPath(); x.arc(j.x,j.y,R,0,7);
+      x.strokeStyle=b.team?pal[b.team]:'#fff'; x.lineWidth=lw*.7; x.stroke();
     }
     x.restore();
   }
