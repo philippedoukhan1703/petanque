@@ -84,7 +84,7 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
     </div>
     <p id="empty" class="mute">Touchez une zone vide pour ajouter un cercle, un cercle pour le modifier.</p>
     <div id="sum"></div>
-    <p class="note">Mesure indicative : échelle donnée par le cochonnet de 30 mm, vue de dessus.</p>
+    <p class="note">Mesure indicative, vue de dessus : l’écart à droite est calculé avec le cochonnet de 30 mm. Diamètre homologué d’une boule : 70,5 à 80 mm (FIPJP).</p>
   </div>
 </section>
 
@@ -189,7 +189,7 @@ function verdict(){
   const j=balls.find(b=>b.jack); if(!j) return null;
   const mm=30/(2*j.r);
   const l=balls.filter(b=>!b.jack&&b.team)
-    .map(b=>({b,g:(Math.hypot(b.x-j.x,b.y-j.y)-b.r-j.r)*mm})).sort((p,q)=>p.g-q.g);
+    .map(b=>({b,g:(Math.hypot(b.x-j.x,b.y-j.y)-b.r-j.r)*mm,d:2*b.r*mm})).sort((p,q)=>p.g-q.g);
   if(!l.length) return null;
   const f=l[0],o=l.find(e=>e.b.team!==f.b.team),tie=!!o&&Math.abs(o.g-f.g)<1;
   return {l,win:f.b.team,tie,pts:tie?0:(o?l.indexOf(o):l.length),rank:new Map(l.map((e,i)=>[e.b,i+1]))};
@@ -231,7 +231,7 @@ function ui(){
   const v=verdict(), L=t=>t===1?'A':'B';
   $('#sum').innerHTML=v
     ? `<p class="res">${v.tie?'Égalité : à remesurer':`Équipe ${L(v.win)} : ${v.pts} point${v.pts>1?'s':''}`}</p><ol>`+
-      v.l.map(e=>`<li class="t${e.b.team}"><span>${e.b===v.l[0].b?'1. ':''}Équipe ${L(e.b.team)}</span><b>${Math.max(0,Math.round(e.g))} mm</b></li>`).join('')+'</ol>'
+      v.l.map(e=>`<li class="t${e.b.team}"><span>${e.b===v.l[0].b?'1. ':''}Équipe ${L(e.b.team)} · Ø ${e.d.toFixed(1)} mm — ${e.d>=70.5&&e.d<=80?'conforme':'hors norme'}</span><b>${Math.max(0,Math.round(e.g))} mm</b></li>`).join('')+'</ol>'
     : '<p class="mute">Désignez le cochonnet et attribuez une équipe à chaque boule.</p>';
 }
 
