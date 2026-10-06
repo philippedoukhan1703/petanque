@@ -84,7 +84,7 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
     </div>
     <p id="empty" class="mute">Touchez une zone vide pour ajouter un cercle, un cercle pour le modifier.</p>
     <div id="sum"></div>
-    <p class="note">Mesure indicative : échelle donnée par le cochonnet de 30 mm, vue de dessus.</p>
+    <p class="note">Les cercles pointillés sont centrés sur le cochonnet et tangents aux boules côté cochonnet. Mesure indicative : échelle donnée par le cochonnet de 30 mm, vue de dessus.</p>
   </div>
 </section>
 
@@ -209,6 +209,19 @@ new ResizeObserver(layout).observe($('#stage'));
 function draw(){
   const x=cv.getContext('2d'),v=verdict(),lw=Math.max(3,img.width/250);
   x.drawImage(img,0,0);
+  const jack=balls.find(b=>b.jack);
+  if(jack){
+    x.save(); x.setLineDash([lw*2,lw*1.5]); x.lineWidth=Math.max(1,lw*.65);
+    balls.forEach(b=>{
+      if(b.jack) return;
+      const r=Math.hypot(b.x-jack.x,b.y-jack.y)-b.r;
+      if(r<=0) return;
+      x.beginPath(); x.arc(jack.x,jack.y,r,0,2*Math.PI);
+      x.strokeStyle=b.team===1?'rgba(214,57,63,.8)':b.team===2?'rgba(43,111,224,.8)':'rgba(255,255,255,.85)';
+      x.stroke();
+    });
+    x.restore();
+  }
   balls.forEach((b,i)=>{
     const col=b.jack?'#e8a400':['#9aa5ae','#d6393f','#2b6fe0'][b.team], w=i===sel?lw*1.8:lw;
     x.beginPath(); x.arc(b.x,b.y,b.r,0,7);
