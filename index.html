@@ -189,24 +189,48 @@ function detect(c){
     }
     return hit/K;
   };
+  const solid=(cx,cy,r)=>{ // boule et cochonnet sont des disques pleins : le centre tranche avec le fond
+    const inn=[],outb=[],K=24;
+    for(let k=0;k<K;k++){
+      const a=2*Math.PI*k/K;
+      let px=Math.round(cx+.5*r*Math.cos(a)),py=Math.round(cy+.5*r*Math.sin(a));
+      if(px>=0&&px<W&&py>=0&&py<H) inn.push(g[py*W+px]);
+      px=Math.round(cx+1.7*r*Math.cos(a)); py=Math.round(cy+1.7*r*Math.sin(a));
+      if(px>=0&&px<W&&py>=0&&py<H) outb.push(g[py*W+px]);
+    }
+    if(!inn.length||!outb.length) return false;
+    const med=v=>v.sort((p,q)=>p-q)[v.length>>1];
+    return Math.abs(med(inn)-med(outb))>=10; // un simple cercle tracé au sol a le même fond dedans/dehors
+  };
   const scored=[];
   for(const [,x,y,r] of cand){
     let best=0,br=r;
     for(const rr of[r-1,r,r+1]){ if(rr<r0) continue; const sc=score(x,y,rr); if(sc>best){best=sc;br=rr;} }
-    if(best>=.45) scored.push([best,x,y,br]);
+    if(best>=.5&&solid(x,y,br)) scored.push([best,x,y,br]);
   }
   scored.sort((p,q)=>q[0]-p[0]||q[3]-p[3]);
-  const out=[];
-  for(const [,x,y,r] of scored){
-    if(out.length>=24) break;
-    if(out.some(o=>Math.hypot(o.x-x,o.y-y)<.6*Math.max(o.r,r))) continue;
-    out.push({x,y,r});
+  const picked=[];
+  for(const [sc,x,y,r] of scored){
+    if(picked.length>=24) break;
+    if(picked.some(o=>Math.hypot(o.x-x,o.y-y)<.9*Math.max(o.r,r))) continue;
+    picked.push({x,y,r,sc});
   }
-  const res=out.map(o=>({x:o.x/s,y:o.y/s,r:o.r/s,team:0,jack:false}));
-  if(res.length>=2){
-    const med=res.map(b=>b.r).sort((p,q)=>p-q)[res.length>>1], small=res.reduce((p,q)=>q.r<p.r?q:p);
-    if(small.r<.75*med) small.jack=true; // un vrai cochonnet (30 mm) est bien plus petit qu'une boule
+  // ne garder que boules + cochonnet : vues de dessus, les boules partagent un même rayon
+  // et le cochonnet (30 mm) est nettement plus petit ; tout autre cercle est du bruit
+  let out=picked;
+  if(picked.length>1){
+    let R=picked[0].r,sup=-1;
+    for(const p of picked){
+      let s2=0; for(const q of picked) if(q.r>=.8*p.r&&q.r<=1.25*p.r) s2+=q.sc*q.r; // pondéré par le rayon : les boules dominent les petits cailloux ronds
+      if(s2>sup||(s2===sup&&p.r>R)){sup=s2;R=p.r;}
+    }
+    out=picked.filter(p=>p.r>=.72*R&&p.r<=1.32*R).slice(0,12); // 12 boules max en jeu
+    const mx=out.reduce((t,p)=>t+p.x,0)/out.length, my=out.reduce((t,p)=>t+p.y,0)/out.length;
+    const jk=picked.filter(p=>p.r>=.25*R&&p.r<=.6*R) // le cochonnet est au milieu du jeu : le petit cercle le plus proche des boules
+      .sort((p,q)=>Math.hypot(p.x-mx,p.y-my)-Math.hypot(q.x-mx,q.y-my))[0];
+    if(jk){jk.jack=true;out.push(jk);} // un seul cochonnet, bien plus petit qu'une boule
   }
+  const res=out.map(o=>({x:o.x/s,y:o.y/s,r:o.r/s,team:0,jack:!!o.jack}));
   // équipes automatiques : 2-moyennes sur la couleur moyenne de chaque boule
   const colOf=o=>{
     const rad=Math.max(2,Math.round(o.r*.6)); let R=0,G=0,B=0,k=0;
