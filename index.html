@@ -170,12 +170,22 @@ function detect(c){
     }
   }
   // candidats à seuil bas, puis vérification du périmètre (contours alignés radialement)
-  const cand=[];
+  // tas-min borné : on garde les 600 meilleurs candidats sans matérialiser toute la liste
+  const CAP=600,cand=[];
+  const up=j=>{for(;j>0;){const p=(j-1)>>1; if(cand[p][0]<=cand[j][0]) break; [cand[p],cand[j]]=[cand[j],cand[p]]; j=p;}};
+  const down=()=>{let j=0;for(;;){const l=2*j+1,r=l+1;let s=j;
+    if(l<cand.length&&cand[l][0]<cand[s][0]) s=l;
+    if(r<cand.length&&cand[r][0]<cand[s][0]) s=r;
+    if(s===j) break; [cand[s],cand[j]]=[cand[j],cand[s]]; j=s;}};
   for(let r=r0;r<=r1;r++){
     const full=2*Math.PI*r;
-    for(let i=0;i<n;i++){const v=acc[(r-r0)*n+i]/full; if(v>.15) cand.push([v,i%W,(i/W)|0,r]);}
+    for(let i=0;i<n;i++){
+      const v=acc[(r-r0)*n+i]/full; if(v<=.15) continue;
+      if(cand.length<CAP){ cand.push([v,i%W,(i/W)|0,r]); up(cand.length-1); }
+      else if(v>cand[0][0]){ cand[0]=[v,i%W,(i/W)|0,r]; down(); }
+    }
   }
-  cand.sort((p,q)=>q[0]-p[0]); cand.length=Math.min(cand.length,600);
+  cand.sort((p,q)=>q[0]-p[0]);
   const score=(cx,cy,r)=>{
     let hit=0; const K=48;
     for(let k=0;k<K;k++){
