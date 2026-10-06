@@ -209,6 +209,17 @@ new ResizeObserver(layout).observe($('#stage'));
 function draw(){
   const x=cv.getContext('2d'),v=verdict(),lw=Math.max(3,img.width/250);
   x.drawImage(img,0,0);
+  if(v){
+    const j=balls.find(b=>b.jack);
+    x.setLineDash([lw*2.5,lw*2]);
+    v.l.forEach(({b})=>{
+      const r=Math.hypot(b.x-j.x,b.y-j.y)-b.r; if(r<=0) return;
+      x.beginPath(); x.arc(j.x,j.y,r,0,7);
+      x.strokeStyle='rgba(0,0,0,.45)'; x.lineWidth=lw*.7+2; x.stroke();
+      x.strokeStyle=['#9aa5ae','#d6393f','#2b6fe0'][b.team]; x.lineWidth=lw*.7; x.stroke();
+    });
+    x.setLineDash([]);
+  }
   balls.forEach((b,i)=>{
     const col=b.jack?'#e8a400':['#9aa5ae','#d6393f','#2b6fe0'][b.team], w=i===sel?lw*1.8:lw;
     x.beginPath(); x.arc(b.x,b.y,b.r,0,7);
