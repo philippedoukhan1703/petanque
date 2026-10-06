@@ -207,10 +207,10 @@ function layout(){
 }
 new ResizeObserver(layout).observe($('#stage'));
 function draw(){
-  const x=cv.getContext('2d'),v=verdict(),lw=Math.max(3,img.width/250);
+  const x=cv.getContext('2d'),v=verdict(),lw=Math.max(5,img.width/140);
   x.drawImage(img,0,0);
   balls.forEach((b,i)=>{
-    const col=b.jack?'#e8a400':['#9aa5ae','#d6393f','#2b6fe0'][b.team], w=i===sel?lw*1.8:lw;
+    const col=b.jack?'#e8a400':['#00cfe8','#d6393f','#2b6fe0'][b.team], w=i===sel?lw*1.8:lw;
     x.beginPath(); x.arc(b.x,b.y,b.r,0,7);
     x.strokeStyle='rgba(0,0,0,.45)'; x.lineWidth=w+3; x.stroke();
     x.strokeStyle=col; x.lineWidth=w; x.stroke();
