@@ -187,7 +187,7 @@ function detect(c){
 /* ---------- Classement ---------- */
 function verdict(){
   const j=balls.find(b=>b.jack); if(!j) return null;
-  const mm=30/(4*j.r);
+  const mm=30/(2*j.r);
   const l=balls.filter(b=>!b.jack&&b.team)
     .map(b=>({b,g:(Math.hypot(b.x-j.x,b.y-j.y)-b.r-j.r)*mm})).sort((p,q)=>p.g-q.g);
   if(!l.length) return null;
