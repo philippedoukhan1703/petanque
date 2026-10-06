@@ -185,7 +185,7 @@ function detect(c){
       for(const o of[-W-1,-W,-W+1,-1,1,W-1,W,W+1]) if(m[i+o]>bm){bm=m[i+o];bi=i+o;}
       if(bm<thr2) continue;
       const rx=bi%W-cx,ry=(bi/W|0)-cy,rl=Math.hypot(rx,ry)||1;
-      if(Math.abs((gx[bi]*rx+gy[bi]*ry)/(bm*rl))>.72) hit++;
+      if(Math.abs((gx[bi]*rx+gy[bi]*ry)/(bm*rl))>.8) hit++;
     }
     return hit/K;
   };
@@ -193,14 +193,23 @@ function detect(c){
   for(const [,x,y,r] of cand){
     let best=0,br=r;
     for(const rr of[r-1,r,r+1]){ if(rr<r0) continue; const sc=score(x,y,rr); if(sc>best){best=sc;br=rr;} }
-    if(best>=.45) scored.push([best,x,y,br]);
+    if(best>=.62) scored.push([best,x,y,br]); // seuil élevé : seuls les vrais contours circulaires passent
   }
   scored.sort((p,q)=>q[0]-p[0]||q[3]-p[3]);
   const out=[];
   for(const [,x,y,r] of scored){
-    if(out.length>=24) break;
-    if(out.some(o=>Math.hypot(o.x-x,o.y-y)<.6*Math.max(o.r,r))) continue;
+    if(out.length>=13) break; // au plus 12 boules + 1 cochonnet sur un terrain
+    if(out.some(o=>Math.hypot(o.x-x,o.y-y)<.85*(o.r+r))) continue; // vues de dessus, deux boules ne se chevauchent jamais
     out.push({x,y,r});
+  }
+  // ne garder que ce qui peut exister sur un terrain : la famille des boules (grands cercles
+  // de taille homogène) et au plus un cercle nettement plus petit, le cochonnet (≈0,4 boule)
+  if(out.length>2){
+    const rmax=Math.max(...out.map(o=>o.r));
+    const keep=out.filter(o=>o.r>=.7*rmax);
+    const jack=out.find(o=>o.r>=.25*rmax&&o.r<.62*rmax); // le mieux noté des petits
+    if(jack) keep.push(jack);
+    out.length=0; out.push(...keep);
   }
   const res=out.map(o=>({x:o.x/s,y:o.y/s,r:o.r/s,team:0,jack:false}));
   if(res.length>=2){
