@@ -33,8 +33,8 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
 #shot{width:72px;height:72px;padding:0;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.85)}
 /* correction */
 .bar{display:flex;align-items:center;gap:12px;padding:8px 12px}
-#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#c9d0cb}
-#cv{touch-action:none;display:block}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#c9d0cb;overflow:hidden}
+#cv{touch-action:none;display:block;transform-origin:0 0}
 #panel{background:var(--carte);border-top:2px solid var(--encre);padding:12px 16px calc(12px + env(safe-area-inset-bottom));max-height:44%;overflow:auto}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
 .seg button{padding:8px 4px}
@@ -80,9 +80,13 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
         <button data-t="0">Aucune</button><button data-t="1">Équipe A</button><button data-t="2">Équipe B</button>
       </div>
       <label class="row"><input type="checkbox" id="jack"> Cochonnet (30 mm)</label>
-      <div class="row"><input type="range" id="rad" aria-label="Rayon du cercle"><button id="del" class="sm danger">Supprimer</button></div>
+      <div class="row">
+        <button id="add-circle" class="sm">Ajouter un cercle</button>
+        <input type="range" id="rad" aria-label="Rayon du cercle">
+        <button id="del" class="sm danger">Supprimer</button>
+      </div>
     </div>
-    <p id="empty" class="mute">Touchez une zone vide pour ajouter un cercle, un cercle pour le modifier.</p>
+    <p id="empty" class="mute">Touchez une zone vide pour ajouter un cercle, ou utilisez le bouton "Ajouter un cercle". Utilisez <b>deux doigts pour zoomer</b> ou la molette de la souris.</p>
     <div id="sum"></div>
     <p class="note">Mesure indicative : échelle donnée par le cochonnet de 30 mm, vue de dessus. Les cercles en pointillés centrés sur le cochonnet comparent les distances des boules.</p>
   </div>
@@ -91,6 +95,8 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
 <script>
 const $=s=>document.querySelector(s), cv=$('#cv');
 let stream,img,balls=[],sel=-1,drag=null,since=null,fired=false;
+let scale = 1, offsetX = 0, offsetY = 0, isPinching = false, initialPinchDistance = 0, initialScale = 1, lastX = 0, lastY = 0, startX = 0, startY = 0;
+let pointers = [];
 const show=id=>document.querySelectorAll('.screen').forEach(e=>e.classList.toggle('on',e.id===id));
 const stopCam=()=>stream&&stream.getTracks().forEach(t=>t.stop());
 
@@ -110,14 +116,13 @@ async function start(){
   }
 }
 function fail(m){ $('#err').textContent=m+' Vous pouvez aussi choisir une photo.'; show('home'); }
-// iPhone : le niveau (gyroscope) demande une autorisation à part, déclenchée par un toucher
 $('#sens').onclick=async()=>{
   try{ if(await DeviceOrientationEvent.requestPermission()==='granted') $('#sens').hidden=true; }catch(e){}
 };
 function onOri(e){
   if(e.beta==null||!$('#cap').classList.contains('on')) return;
   const b=e.beta*Math.PI/180, g=e.gamma*Math.PI/180;
-  const tilt=Math.acos(Math.min(1,Math.max(-1,Math.cos(b)*Math.cos(g))))*180/Math.PI; // écart à l'horizontale
+  const tilt=Math.acos(Math.min(1,Math.max(-1,Math.cos(b)*Math.cos(g))))*180/Math.PI;
   const cl=v=>Math.max(-50,Math.min(50,v)), ok=tilt<2;
   $('#dot').style.transform=`translate(${cl(e.gamma*10)}px,${cl(e.beta*10)}px)`;
   $('#ring').classList.toggle('ok',ok);
@@ -155,19 +160,28 @@ function verdict(){
 /* ---------- Affichage ---------- */
 function openReview(c){
   stopCam(); img=c; cv.width=c.width; cv.height=c.height;
+  scale = 1; offsetX = 0; offsetY = 0;
   balls=[]; sel=-1; show('rev'); ui(); layout(); draw();
 }
 function layout(){
   if(!img) return; const s=$('#stage');
   const k=Math.min(s.clientWidth/img.width,s.clientHeight/img.height);
   cv.style.width=img.width*k+'px'; cv.style.height=img.height*k+'px';
+  applyTransform();
 }
 new ResizeObserver(layout).observe($('#stage'));
+function applyTransform(){
+  cv.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+}
 function draw(){
   const x=cv.getContext('2d'),v=verdict(),lw=Math.max(3,img.width/250),pal=['#9aa5ae','#d6393f','#2b6fe0'];
+  x.clearRect(0, 0, cv.width, cv.height);
+  x.save();
+  x.translate(offsetX, offsetY);
+  x.scale(scale, scale);
   x.drawImage(img,0,0);
   const j=balls.find(b=>b.jack);
-  if(j){ // cercles concentriques centrés sur le cochonnet : un par boule, dès qu'un cochonnet existe
+  if(j){
     x.save(); x.setLineDash([lw*2.2,lw*1.6]);
     for(const b of balls){
       if(b.jack) continue;
@@ -191,6 +205,7 @@ function draw(){
       x.fillStyle='#fff'; x.font=`700 ${fs}px sans-serif`; x.textAlign='center'; x.textBaseline='middle'; x.fillText(rk,b.x,b.y+fs*.04);
     }
   });
+  x.restore();
 }
 function ui(){
   const b=balls[sel]; $('#tools').hidden=!b; $('#empty').hidden=!!b;
@@ -206,26 +221,119 @@ function ui(){
 }
 
 /* ---------- Corrections au doigt ---------- */
-const pt=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*cv.width/r.width,y:(e.clientY-r.top)*cv.height/r.height,k:cv.width/r.width}};
-cv.onpointerdown=e=>{
-  const p=pt(e); cv.setPointerCapture(e.pointerId);
-  let h=-1,best=1e9; balls.forEach((b,i)=>{const d=Math.hypot(b.x-p.x,b.y-p.y); if(d<b.r&&d<best){best=d;h=i;}});
-  drag={p,h,moved:false,g:h>=0?{x:balls[h].x-p.x,y:balls[h].y-p.y}:null};
-  if(h>=0){sel=h;ui();draw();}
+const pt = e => {
+  const r = cv.getBoundingClientRect();
+  return {
+    x: (e.clientX - r.left - offsetX) / scale,
+    y: (e.clientY - r.top - offsetY) / scale,
+    k: cv.width / r.width / scale
+  };
 };
-cv.onpointermove=e=>{
-  if(!drag) return; const p=pt(e);
-  if(Math.hypot(p.x-drag.p.x,p.y-drag.p.y)>6*p.k) drag.moved=true;
-  if(drag.moved&&drag.h>=0){balls[drag.h].x=p.x+drag.g.x;balls[drag.h].y=p.y+drag.g.y;ui();draw();}
+
+cv.onwheel = e => {
+  e.preventDefault();
+  const delta = e.deltaY > 0 ? 0.9 : 1.1;
+  const newScale = Math.max(0.5, Math.min(5, scale * delta));
+  const rect = cv.getBoundingClientRect();
+  const mouseX = e.clientX - rect.left;
+  const mouseY = e.clientY - rect.top;
+  offsetX = mouseX - (mouseX - offsetX) * (newScale / scale);
+  offsetY = mouseY - (mouseY - offsetY) * (newScale / scale);
+  scale = newScale;
+  applyTransform();
+  draw();
 };
-cv.onpointerup=()=>{
-  if(drag&&drag.h<0&&!drag.moved){
-    const rs=balls.filter(b=>!b.jack).map(b=>b.r).sort((a,b)=>a-b);
-    balls.push({x:drag.p.x,y:drag.p.y,r:rs.length?rs[rs.length>>1]:img.width/18,team:0,jack:false});
-    sel=balls.length-1; ui(); draw();
+
+cv.onpointerdown = e => {
+  pointers.push(e);
+  const p = pt(e);
+  cv.setPointerCapture(e.pointerId);
+  let h = -1, best = 1e9;
+  balls.forEach((b, i) => {
+    const d = Math.hypot(b.x - p.x, b.y - p.y);
+    if (d < b.r && d < best) { best = d; h = i; }
+  });
+  if (h >= 0) {
+    sel = h;
+    drag = { p, h, moved: false, g: { x: balls[h].x - p.x, y: balls[h].y - p.y } };
+    ui();
+    draw();
+  } else if (pointers.length === 1) {
+    drag = { p, h: -1, moved: false, g: null };
+    startX = p.x; startY = p.y; lastX = offsetX; lastY = offsetY;
   }
-  drag=null;
 };
+
+cv.onpointermove = e => {
+  if (!drag) return;
+  const p = pt(e);
+  if (pointers.length === 2) {
+    const p1 = pointers[0], p2 = pointers[1];
+    const dist = Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY);
+    if (!isPinching) {
+      initialPinchDistance = dist;
+      initialScale = scale;
+      isPinching = true;
+    } else {
+      const newScale = Math.max(0.5, Math.min(5, initialScale * dist / initialPinchDistance));
+      const rect = cv.getBoundingClientRect();
+      const centerX = (p1.clientX + p2.clientX) / 2 - rect.left;
+      const centerY = (p1.clientY + p2.clientY) / 2 - rect.top;
+      offsetX = centerX - (centerX - offsetX) * (newScale / scale);
+      offsetY = centerY - (centerY - offsetY) * (newScale / scale);
+      scale = newScale;
+      applyTransform();
+      draw();
+    }
+  } else if (drag.h >= 0) {
+    if (Math.hypot(p.x - drag.p.x, p.y - drag.p.y) > 6 * p.k) drag.moved = true;
+    if (drag.moved) {
+      balls[drag.h].x = p.x + drag.g.x;
+      balls[drag.h].y = p.y + drag.g.y;
+      ui();
+      draw();
+    }
+  } else if (drag.h === -1 && !drag.moved) {
+    offsetX = lastX + (p.x - startX) * scale;
+    offsetY = lastY + (p.y - startY) * scale;
+    applyTransform();
+    draw();
+  }
+};
+
+cv.onpointerup = e => {
+  pointers = pointers.filter(p => p.pointerId !== e.pointerId);
+  if (pointers.length < 2) isPinching = false;
+  if (drag && drag.h < 0 && !drag.moved) {
+    const p = pt(e);
+    const avgRadius = img.width / 18;
+    const minDist = avgRadius * 1.5;
+    const tooClose = balls.some(b => Math.hypot(b.x - p.x, b.y - p.y) < minDist);
+    if (!tooClose) {
+      balls.push({x: p.x, y: p.y, r: avgRadius, team: 0, jack: false});
+      sel = balls.length - 1;
+      ui();
+      draw();
+    }
+  }
+  drag = null;
+};
+
+$('#add-circle').onclick=()=>{
+  if(!img) return;
+  const avgRadius = img.width / 18;
+  balls.push({
+    x: img.width / 2,
+    y: img.height / 2,
+    r: avgRadius,
+    team: 0,
+    jack: false
+  });
+  sel = balls.length - 1;
+  ui();
+  draw();
+};
+
 document.querySelectorAll('.seg button').forEach(e=>e.onclick=()=>{if(sel<0)return;balls[sel].team=+e.dataset.t;ui();draw();});
 $('#jack').onchange=e=>{
   if(sel<0) return;
