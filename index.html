@@ -107,7 +107,7 @@ const stopCam=()=>stream&&stream.getTracks().forEach(t=>t.stop());
 
 /* ---------- Historique des corrections ---------- */
 const undoStack=[], redoStack=[], historyLimit=100;
-let pendingEdit=null;
+let pendingEdit=null, radiusKeyDown=false;
 const snapshot=()=>({balls:balls.map(b=>({...b})),sel});
 function beginEdit(){
   if(!pendingEdit) pendingEdit=snapshot();
@@ -220,7 +220,7 @@ function openReview(c){
   stopCam(); img=c; cv.width=c.width; cv.height=c.height;
   scale = 1; offsetX = 0; offsetY = 0;
   balls=[]; sel=-1; drag=null; pointers=[]; isPinching=false;
-  pendingEdit=null; undoStack.length=0; redoStack.length=0;
+  pendingEdit=null; radiusKeyDown=false; undoStack.length=0; redoStack.length=0;
   show('rev'); ui(); layout(); draw();
 }
 function layout(){
@@ -424,10 +424,17 @@ $('#jack').onchange=e=>{
   });
 };
 $('#rad').oninput=e=>{if(sel>=0){beginEdit();balls[sel].r=+e.target.value;ui();draw();}};
-$('#rad').onchange=finishEdit;
-$('#rad').onblur=finishEdit;
+const radiusKeys=['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','PageUp','PageDown','Home','End'];
+$('#rad').onkeydown=e=>{
+  if(radiusKeys.includes(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey) radiusKeyDown=true;
+};
+$('#rad').onkeyup=e=>{
+  if(radiusKeys.includes(e.key)){radiusKeyDown=false;finishEdit();}
+};
+$('#rad').onchange=()=>{if(!radiusKeyDown) finishEdit();};
+$('#rad').onblur=()=>{radiusKeyDown=false;finishEdit();};
 $('#rad').onpointerdown=e=>{
-  finishEdit(); drag=null;
+  radiusKeyDown=false; finishEdit(); drag=null;
   e.target.setPointerCapture(e.pointerId);
 };
 $('#rad').onpointerup=finishEdit;
