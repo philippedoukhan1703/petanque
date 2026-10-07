@@ -80,9 +80,13 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
         <button data-t="0">Aucune</button><button data-t="1">Équipe A</button><button data-t="2">Équipe B</button>
       </div>
       <label class="row"><input type="checkbox" id="jack"> Cochonnet (30 mm)</label>
-      <div class="row"><input type="range" id="rad" aria-label="Rayon du cercle"><button id="del" class="sm danger">Supprimer</button></div>
+      <div class="row">
+        <button id="add-circle" class="sm">Ajouter un cercle</button>
+        <input type="range" id="rad" aria-label="Rayon du cercle">
+        <button id="del" class="sm danger">Supprimer</button>
+      </div>
     </div>
-    <p id="empty" class="mute">Touchez une zone vide pour ajouter un cercle, un cercle pour le modifier.</p>
+    <p id="empty" class="mute">Touchez une zone vide pour sélectionner, ou utilisez le bouton "Ajouter un cercle".</p>
     <div id="sum"></div>
     <p class="note">Mesure indicative : échelle donnée par le cochonnet de 30 mm, vue de dessus. Les cercles en pointillés centrés sur le cochonnet comparent les distances des boules.</p>
   </div>
@@ -167,7 +171,7 @@ function draw(){
   const x=cv.getContext('2d'),v=verdict(),lw=Math.max(3,img.width/250),pal=['#9aa5ae','#d6393f','#2b6fe0'];
   x.drawImage(img,0,0);
   const j=balls.find(b=>b.jack);
-  if(j){ // cercles concentriques centrés sur le cochonnet : un par boule, dès qu'un cochonnet existe
+  if(j){ // cercles concentriques centrés sur le cochonnet
     x.save(); x.setLineDash([lw*2.2,lw*1.6]);
     for(const b of balls){
       if(b.jack) continue;
@@ -219,13 +223,26 @@ cv.onpointermove=e=>{
   if(drag.moved&&drag.h>=0){balls[drag.h].x=p.x+drag.g.x;balls[drag.h].y=p.y+drag.g.y;ui();draw();}
 };
 cv.onpointerup=()=>{
-  if(drag&&drag.h<0&&!drag.moved){
-    const rs=balls.filter(b=>!b.jack).map(b=>b.r).sort((a,b)=>a-b);
-    balls.push({x:drag.p.x,y:drag.p.y,r:rs.length?rs[rs.length>>1]:img.width/18,team:0,jack:false});
-    sel=balls.length-1; ui(); draw();
-  }
+  // Plus d'ajout automatique de cercles ici
   drag=null;
 };
+
+// Bouton pour ajouter un cercle manuellement
+$('#add-circle').onclick=()=>{
+  if(!img) return;
+  const avgRadius = img.width / 18;
+  balls.push({
+    x: img.width / 2,
+    y: img.height / 2,
+    r: avgRadius,
+    team: 0,
+    jack: false
+  });
+  sel = balls.length - 1;
+  ui();
+  draw();
+};
+
 document.querySelectorAll('.seg button').forEach(e=>e.onclick=()=>{if(sel<0)return;balls[sel].team=+e.dataset.t;ui();draw();});
 $('#jack').onchange=e=>{
   if(sel<0) return;
