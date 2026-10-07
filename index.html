@@ -9,19 +9,18 @@
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0;height:100%;background:var(--gravier);color:var(--encre);font:16px/1.45 "Avenir Next","Century Gothic","Segoe UI",system-ui,sans-serif}
-.screen{display:none;height:100%;flex-direction:column;padding-top:env(safe-area-inset-top)}
+.screen{display:none;height:100%;flex-direction:column;padding-top:env(safe-area-inset-top);min-height:100dvh}
 .screen.on{display:flex}
-button,.btn{font:inherit;font-weight:600;border:2px solid var(--encre);background:var(--carte);color:var(--encre);border-radius:12px;padding:12px 18px;cursor:pointer;display:inline-block;text-align:center}
+button,.btn{font:inherit;font-weight:600;border:2px solid var(--encre);background:var(--carte);color:var(--encre);border-radius:12px;padding:12px 18px;cursor:pointer;display:inline-block;text-align:center;user-select:none}
+button:disabled{opacity:.5;cursor:not-allowed}
 button:focus-visible,.btn:focus-within,input:focus-visible{outline:3px solid var(--b);outline-offset:2px}
 .main{background:var(--prim);border-color:var(--prim);color:#fff}
 .sm{padding:8px 12px;font-size:.9rem}
 .danger{color:var(--a);border-color:var(--a)}
 .mute{color:var(--mute)}
-/* accueil */
 .wrap{margin:auto;max-width:30rem;padding:24px;display:grid;gap:14px}
 h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
 .err{color:var(--a);min-height:1.4em;margin:0}
-/* capture */
 #cap{position:relative;background:#000;padding-top:0}
 #vid{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .hud{position:absolute;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
@@ -31,10 +30,9 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
 #ring.ok #dot{background:var(--ok)}
 #tilt{color:#fff;background:rgba(0,0,0,.55);padding:4px 12px;border-radius:99px;font-weight:600}
 #shot{width:72px;height:72px;padding:0;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.85)}
-/* correction */
 .bar{display:flex;align-items:center;gap:12px;padding:8px 12px}
-#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#c9d0cb;overflow:hidden}
-#cv{touch-action:none;display:block;transform-origin:0 0}
+#stage{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#c9d0cb;overflow:hidden;position:relative}
+#cv{touch-action:none;display:block;transform-origin:0 0;will-change:transform}
 #panel{background:var(--carte);border-top:2px solid var(--encre);padding:12px 16px calc(12px + env(safe-area-inset-bottom));max-height:44%;overflow:auto}
 .seg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}
 .seg button{padding:8px 4px}
@@ -54,7 +52,7 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
 <section id="home" class="screen on">
   <div class="wrap">
     <h1>Mesure pétanque</h1>
-    <p>Tenez le téléphone à plat au-dessus des boules. La photo part toute seule quand le niveau est bon. Placez ensuite les cercles au doigt sur les boules et le cochonnet, attribuez les équipes et lisez le classement.</p>
+    <p>Tenez le téléphone à plat au-dessus des boules. La photo se déclenche toute seule quand le niveau est bon. Ensuite, placez les cercles sur les boules et le cochonnet, attribuez les équipes, puis l’app calcule le score.</p>
     <button id="go" class="main">Ouvrir la caméra</button>
     <label class="btn">Choisir une photo<input id="file" type="file" accept="image/*" hidden></label>
     <p id="err" class="err" role="alert"></p>
@@ -72,7 +70,7 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
 </section>
 
 <section id="rev" class="screen">
-  <div class="bar"><button id="retake" class="sm">Refaire la photo</button></div>
+  <div class="bar"><button id="retake" class="sm">Reprendre une photo</button></div>
   <div id="stage"><canvas id="cv"></canvas></div>
   <div id="panel">
     <div id="tools" hidden>
@@ -86,9 +84,9 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
         <button id="del" class="sm danger">Supprimer</button>
       </div>
     </div>
-    <p id="empty" class="mute">Touchez une zone vide pour ajouter un cercle, ou utilisez le bouton "Ajouter un cercle". Utilisez <b>deux doigts pour zoomer</b> ou la molette de la souris.</p>
+    <p id="empty" class="mute">Touchez une zone vide pour ajouter un cercle, ou utilisez “Ajouter un cercle”. Utilisez <b>deux doigts pour zoomer</b> ou la molette de la souris.</p>
     <div id="sum"></div>
-    <p class="note">Mesure indicative : échelle donnée par le cochonnet de 30 mm, vue de dessus. Les cercles en pointillés centrés sur le cochonnet comparent les distances des boules.</p>
+    <p class="note">Mesure indicative : l’échelle est donnée par le cochonnet de 30 mm, vue de dessus. Les cercles pointillés centrés sur le cochonnet comparent les distances des boules.</p>
   </div>
 </section>
 
@@ -100,7 +98,6 @@ let pointers = [];
 const show=id=>document.querySelectorAll('.screen').forEach(e=>e.classList.toggle('on',e.id===id));
 const stopCam=()=>stream&&stream.getTracks().forEach(t=>t.stop());
 
-/* ---------- Capture + niveau (gyroscope) ---------- */
 async function start(){
   addEventListener('deviceorientation',onOri);
   $('#sens').hidden=!(window.DeviceOrientationEvent&&DeviceOrientationEvent.requestPermission);
@@ -111,7 +108,7 @@ async function start(){
   }catch(e){
     const n=e.name;
     fail(n==='NotAllowedError'
-      ? 'Accès à la caméra refusé. Autorisez-la pour ce site (iPhone : bouton « aA » dans Safari > Réglages du site web > Appareil photo), ouvrez la page directement dans Safari ou Chrome (pas dans un aperçu ni une appli de messagerie), puis réessayez.'
+      ? 'Accès à la caméra refusé. Autorisez-la pour ce site (iPhone : bouton « aA » dans Safari > Réglages du site web > Appareil photo), puis rechargez la page.'
       : n==='NotFoundError' ? 'Aucune caméra trouvée sur cet appareil.' : 'Caméra indisponible ('+n+').');
   }
 }
@@ -123,8 +120,8 @@ function onOri(e){
   if(e.beta==null||!$('#cap').classList.contains('on')) return;
   const b=e.beta*Math.PI/180, g=e.gamma*Math.PI/180;
   const tilt=Math.acos(Math.min(1,Math.max(-1,Math.cos(b)*Math.cos(g))))*180/Math.PI;
-  const cl=v=>Math.max(-50,Math.min(50,v)), ok=tilt<2;
-  $('#dot').style.transform=`translate(${cl(e.gamma*10)}px,${cl(e.beta*10)}px)`;
+  const ok=tilt<2;
+  $('#dot').style.transform=`translate(${Math.max(-50,Math.min(50,e.gamma*10))}px,${Math.max(-50,Math.min(50,e.beta*10))}px)`;
   $('#ring').classList.toggle('ok',ok);
   $('#tilt').textContent='Inclinaison '+tilt.toFixed(1)+'°';
   if(ok){ since??=performance.now(); if(!fired&&performance.now()-since>600){fired=true;snap();} }
@@ -139,14 +136,13 @@ function toCanvas(src,w,h){
   c.width=Math.round(w*k); c.height=Math.round(h*k);
   c.getContext('2d').drawImage(src,0,0,c.width,c.height); return c;
 }
-$('#go').onclick=start; $('#shot').onclick=snap; $('#retake').onclick=start;
+$('#go').onclick=start; $('#shot').onclick=snap; $('#retake').onclick=()=>{ stopCam(); start(); };
 $('#file').onchange=e=>{
   const f=e.target.files[0]; if(!f) return;
   const i=new Image(); i.onload=()=>openReview(toCanvas(i,i.naturalWidth,i.naturalHeight)); i.src=URL.createObjectURL(f);
   e.target.value='';
 };
 
-/* ---------- Classement ---------- */
 function verdict(){
   const j=balls.find(b=>b.jack); if(!j) return null;
   const mm=30/(2*j.r);
@@ -157,7 +153,6 @@ function verdict(){
   return {l,win:f.b.team,tie,pts:tie?0:(o?l.indexOf(o):l.length),rank:new Map(l.map((e,i)=>[e.b,i+1]))};
 }
 
-/* ---------- Affichage ---------- */
 function openReview(c){
   stopCam(); img=c; cv.width=c.width; cv.height=c.height;
   scale = 1; offsetX = 0; offsetY = 0;
@@ -220,7 +215,6 @@ function ui(){
     : '<p class="mute">Désignez le cochonnet et attribuez une équipe à chaque boule.</p>';
 }
 
-/* ---------- Corrections au doigt ---------- */
 const pt = e => {
   const r = cv.getBoundingClientRect();
   return {
