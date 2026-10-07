@@ -263,14 +263,14 @@ function draw(){
   const x=cv.getContext('2d'),v=verdict(),lw=Math.max(3,img.width/250),pal=['#9aa5ae','#d6393f','#2b6fe0'];
   x.drawImage(img,0,0);
   const j=balls.find(b=>b.jack);
-  if(j){ // cercles concentriques centrés sur le cochonnet : un par boule, dès qu'un cochonnet existe
-    x.save(); x.setLineDash([lw*2.2,lw*1.6]);
+  if(j){
+    x.save(); x.setLineDash([lw*2.5,lw*2]);
     for(const b of balls){
       if(b.jack) continue;
-      const R=Math.max(1,Math.hypot(b.x-j.x,b.y-j.y)-b.r);
-      x.beginPath(); x.arc(j.x,j.y,R,0,7);
-      x.strokeStyle='rgba(0,0,0,.5)'; x.lineWidth=lw*1.1; x.stroke();
-      x.beginPath(); x.arc(j.x,j.y,R,0,7);
+      const r=Math.hypot(b.x-j.x,b.y-j.y)-b.r;
+      if(r<=0) continue;
+      x.beginPath(); x.arc(j.x,j.y,r,0,7);
+      x.strokeStyle='rgba(0,0,0,.45)'; x.lineWidth=lw*.7+2; x.stroke();
       x.strokeStyle=b.team?pal[b.team]:'#fff'; x.lineWidth=lw*.7; x.stroke();
     }
     x.restore();
