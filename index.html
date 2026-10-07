@@ -13,6 +13,7 @@ html,body{margin:0;height:100%;background:var(--gravier);color:var(--encre);font
 .screen.on{display:flex}
 button,.btn{font:inherit;font-weight:600;border:2px solid var(--encre);background:var(--carte);color:var(--encre);border-radius:12px;padding:12px 18px;cursor:pointer;display:inline-block;text-align:center}
 button:focus-visible,.btn:focus-within,input:focus-visible{outline:3px solid var(--b);outline-offset:2px}
+button:disabled{opacity:.5;cursor:not-allowed}
 .main{background:var(--prim);border-color:var(--prim);color:#fff}
 .sm{padding:8px 12px;font-size:.9rem}
 .danger{color:var(--a);border-color:var(--a)}
@@ -75,6 +76,10 @@ h1{font-size:2.2rem;line-height:1.1;margin:0 0 4px;letter-spacing:-.02em}
   <div class="bar"><button id="retake" class="sm">Refaire la photo</button></div>
   <div id="stage"><canvas id="cv"></canvas></div>
   <div id="panel">
+    <div class="row" role="group" aria-label="Historique des corrections">
+      <button id="undo" class="sm" title="Annuler (Ctrl/Cmd+Z)" disabled>↶ Annuler</button>
+      <button id="redo" class="sm" title="Rétablir (Ctrl/Cmd+Shift+Z ou Ctrl/Cmd+Y)" disabled>↷ Rétablir</button>
+    </div>
     <div id="tools" hidden>
       <div class="seg" role="group" aria-label="Équipe">
         <button data-t="0">Aucune</button><button data-t="1">Équipe A</button><button data-t="2">Équipe B</button>
@@ -99,6 +104,59 @@ let scale = 1, offsetX = 0, offsetY = 0, isPinching = false, initialPinchDistanc
 let pointers = [];
 const show=id=>document.querySelectorAll('.screen').forEach(e=>e.classList.toggle('on',e.id===id));
 const stopCam=()=>stream&&stream.getTracks().forEach(t=>t.stop());
+
+/* ---------- Historique des corrections ---------- */
+const undoStack=[], redoStack=[], historyLimit=100;
+let pendingEdit=null;
+const snapshot=()=>({balls:balls.map(b=>({...b})),sel});
+function beginEdit(){
+  if(!pendingEdit) pendingEdit=snapshot();
+}
+function finishEdit(){
+  if(!pendingEdit) return;
+  const before=pendingEdit, after=snapshot();
+  pendingEdit=null;
+  if(JSON.stringify(before.balls)!==JSON.stringify(after.balls)){
+    undoStack.push({before,after});
+    if(undoStack.length>historyLimit) undoStack.shift();
+    redoStack.length=0;
+  }
+  updateHistory();
+}
+function updateHistory(){
+  $('#undo').disabled=!undoStack.length&&!pendingEdit;
+  $('#redo').disabled=!redoStack.length||!!pendingEdit;
+}
+function edit(action){
+  finishEdit(); drag=null;
+  beginEdit(); action(); finishEdit(); ui(); draw();
+}
+function restore(state){
+  balls=state.balls.map(b=>({...b})); sel=state.sel;
+  drag=null; ui(); draw();
+}
+function undo(){
+  finishEdit(); drag=null;
+  const entry=undoStack.pop();
+  if(entry){redoStack.push(entry);restore(entry.before);}
+  updateHistory();
+}
+function redo(){
+  finishEdit(); drag=null;
+  const entry=redoStack.pop();
+  if(entry){undoStack.push(entry);restore(entry.after);}
+  updateHistory();
+}
+$('#undo').onclick=undo; $('#redo').onclick=redo;
+addEventListener('keydown',e=>{
+  if(!$('#rev').classList.contains('on')||!(e.ctrlKey||e.metaKey)||e.altKey) return;
+  if(e.target.closest('textarea,select,input:not([type=range]):not([type=checkbox]),[contenteditable]:not([contenteditable=false])')) return;
+  const key=e.key.toLowerCase();
+  if(key==='z'||key==='y'){
+    e.preventDefault();
+    if(key==='y'||e.shiftKey) redo(); else undo();
+  }
+});
 
 /* ---------- Capture + niveau (gyroscope) ---------- */
 async function start(){
@@ -161,7 +219,9 @@ function verdict(){
 function openReview(c){
   stopCam(); img=c; cv.width=c.width; cv.height=c.height;
   scale = 1; offsetX = 0; offsetY = 0;
-  balls=[]; sel=-1; show('rev'); ui(); layout(); draw();
+  balls=[]; sel=-1; drag=null; pointers=[]; isPinching=false;
+  pendingEdit=null; undoStack.length=0; redoStack.length=0;
+  show('rev'); ui(); layout(); draw();
 }
 function layout(){
   if(!img) return; const s=$('#stage');
@@ -208,6 +268,7 @@ function draw(){
   x.restore();
 }
 function ui(){
+  updateHistory();
   const b=balls[sel]; $('#tools').hidden=!b; $('#empty').hidden=!!b;
   if(b){
     document.querySelectorAll('.seg button').forEach(e=>e.classList.toggle('on',+e.dataset.t===b.team));
@@ -245,9 +306,16 @@ cv.onwheel = e => {
 };
 
 cv.onpointerdown = e => {
+  if(!img||e.button!==0) return;
+  finishEdit();
   pointers.push(e);
-  const p = pt(e);
   cv.setPointerCapture(e.pointerId);
+  if(pointers.length>1){
+    drag=null;
+    isPinching=false;
+    return;
+  }
+  const p = pt(e);
   let h = -1, best = 1e9;
   balls.forEach((b, i) => {
     const d = Math.hypot(b.x - p.x, b.y - p.y);
@@ -255,6 +323,7 @@ cv.onpointerdown = e => {
   });
   if (h >= 0) {
     sel = h;
+    beginEdit();
     drag = { p, h, moved: false, g: { x: balls[h].x - p.x, y: balls[h].y - p.y } };
     ui();
     draw();
@@ -265,13 +334,15 @@ cv.onpointerdown = e => {
 };
 
 cv.onpointermove = e => {
-  if (!drag) return;
+  const index=pointers.findIndex(p=>p.pointerId===e.pointerId);
+  if(index<0) return;
+  pointers[index]=e;
   const p = pt(e);
   if (pointers.length === 2) {
     const p1 = pointers[0], p2 = pointers[1];
     const dist = Math.hypot(p1.clientX - p2.clientX, p1.clientY - p2.clientY);
     if (!isPinching) {
-      initialPinchDistance = dist;
+      initialPinchDistance = Math.max(1,dist);
       initialScale = scale;
       isPinching = true;
     } else {
@@ -285,6 +356,8 @@ cv.onpointermove = e => {
       applyTransform();
       draw();
     }
+  } else if (!drag) {
+    return;
   } else if (drag.h >= 0) {
     if (Math.hypot(p.x - drag.p.x, p.y - drag.p.y) > 6 * p.k) drag.moved = true;
     if (drag.moved) {
@@ -293,7 +366,9 @@ cv.onpointermove = e => {
       ui();
       draw();
     }
-  } else if (drag.h === -1 && !drag.moved) {
+  } else if (drag.h === -1) {
+    if (Math.hypot(p.x-drag.p.x,p.y-drag.p.y)>6*p.k) drag.moved=true;
+    if(!drag.moved) return;
     offsetX = lastX + (p.x - startX) * scale;
     offsetY = lastY + (p.y - startY) * scale;
     applyTransform();
@@ -301,47 +376,64 @@ cv.onpointermove = e => {
   }
 };
 
-cv.onpointerup = e => {
+function endPointer(e){
+  if(!pointers.some(p=>p.pointerId===e.pointerId)) return;
   pointers = pointers.filter(p => p.pointerId !== e.pointerId);
   if (pointers.length < 2) isPinching = false;
-  if (drag && drag.h < 0 && !drag.moved) {
+  if (e.type==='pointerup' && drag && drag.h < 0 && !drag.moved) {
     const p = pt(e);
     const avgRadius = img.width / 18;
     const minDist = avgRadius * 1.5;
     const tooClose = balls.some(b => Math.hypot(b.x - p.x, b.y - p.y) < minDist);
     if (!tooClose) {
+      beginEdit();
       balls.push({x: p.x, y: p.y, r: avgRadius, team: 0, jack: false});
       sel = balls.length - 1;
       ui();
       draw();
     }
   }
+  finishEdit();
   drag = null;
-};
+}
+cv.onpointerup=endPointer;
+cv.onpointercancel=endPointer;
+cv.onlostpointercapture=endPointer;
 
 $('#add-circle').onclick=()=>{
   if(!img) return;
   const avgRadius = img.width / 18;
-  balls.push({
-    x: img.width / 2,
-    y: img.height / 2,
-    r: avgRadius,
-    team: 0,
-    jack: false
+  edit(()=>{
+    balls.push({
+      x: img.width / 2,
+      y: img.height / 2,
+      r: avgRadius,
+      team: 0,
+      jack: false
+    });
+    sel = balls.length - 1;
   });
-  sel = balls.length - 1;
-  ui();
-  draw();
 };
 
-document.querySelectorAll('.seg button').forEach(e=>e.onclick=()=>{if(sel<0)return;balls[sel].team=+e.dataset.t;ui();draw();});
+document.querySelectorAll('.seg button').forEach(e=>e.onclick=()=>{if(sel<0)return;edit(()=>{balls[sel].team=+e.dataset.t;});});
 $('#jack').onchange=e=>{
   if(sel<0) return;
-  if(e.target.checked){balls.forEach(b=>b.jack=false);balls[sel].team=0;}
-  balls[sel].jack=e.target.checked; ui(); draw();
+  edit(()=>{
+    if(e.target.checked){balls.forEach(b=>b.jack=false);balls[sel].team=0;}
+    balls[sel].jack=e.target.checked;
+  });
 };
-$('#rad').oninput=e=>{if(sel>=0){balls[sel].r=+e.target.value;ui();draw();}};
-$('#del').onclick=()=>{if(sel<0)return;balls.splice(sel,1);sel=-1;ui();draw();};
+$('#rad').oninput=e=>{if(sel>=0){beginEdit();balls[sel].r=+e.target.value;ui();draw();}};
+$('#rad').onchange=finishEdit;
+$('#rad').onblur=finishEdit;
+$('#rad').onpointerdown=e=>{
+  finishEdit(); drag=null;
+  e.target.setPointerCapture(e.pointerId);
+};
+$('#rad').onpointerup=finishEdit;
+$('#rad').onpointercancel=finishEdit;
+$('#rad').onlostpointercapture=finishEdit;
+$('#del').onclick=()=>{if(sel<0)return;edit(()=>{balls.splice(sel,1);sel=-1;});};
 </script>
 </body>
 </html>
